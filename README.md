@@ -1,6 +1,6 @@
 # ResumeLens
 
-An AI-powered resume analysis tool that scores your resume against a job description, flags what's missing, and rewrites it into a stronger, ATS-friendly version — exportable as a polished PDF.
+An AI-powered resume analyzer that shows you what recruiters and ATS bots actually see.
 
 ## What it does
 
@@ -11,23 +11,28 @@ An AI-powered resume analysis tool that scores your resume against a job descrip
 
 ## Tech stack
 
-Backend: Flask (Python), Google Gemini API, pdfplumber (PDF text extraction), ReportLab (PDF generation)
+**Backend:** Flask (Python), Google Gemini API, pdfplumber (PDF text extraction), ReportLab (PDF generation)
 
-Frontend: HTML, CSS, JavaScript (vanilla, no framework)
+**Frontend:** React, Vite
 
 ## Running it locally
 
-Backend:
+**Backend:**
+
 cd backend
-python -m venv .venv
-.venv\Scripts\activate
+python -m venv venv
+venv\Scripts\activate
 pip install -r requirements.txt
 python app.py
-
 The backend runs on http://localhost:5000
 
-Frontend:
-Open frontend/index.html directly in your browser
+**Frontend:**
+
+cd resumelens-frontend
+npm install
+npm run dev
+
+The frontend runs on http://localhost:5173
 
 ## Author
 
