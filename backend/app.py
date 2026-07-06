@@ -18,7 +18,9 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app)
+
+allowed_origin = os.environ.get("FRONTEND_URL", "http://localhost:5173")
+CORS(app, origins=[allowed_origin])
 app = Flask(__name__)
 CORS(app)
 app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # 5MB limit
