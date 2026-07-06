@@ -1,5 +1,6 @@
 from flask import Flask, jsonify, request, send_file
 from flask_cors import CORS
+from werkzeug.utils import secure_filename
 import os
 import time
 import pdfplumber
@@ -137,8 +138,9 @@ def upload_resume():
 
     job_description = request.form.get('job_description', '')
 
-    filepath = os.path.join(UPLOAD_FOLDER, file.filename)
-    file.save(filepath)
+    safe_filename = secure_filename(file.filename)
+filepath = os.path.join(UPLOAD_FOLDER, safe_filename)
+file.save(filepath)
 
     extracted_text = ""
     try:
