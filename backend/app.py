@@ -147,15 +147,18 @@ def upload_resume():
 filepath = os.path.join(UPLOAD_FOLDER, safe_filename)
 file.save(filepath)
 
-    extracted_text = ""
-    try:
-        with pdfplumber.open(filepath) as pdf:
-            for page in pdf.pages:
-                page_text = page.extract_text()
-                if page_text:
-                    extracted_text += page_text + "\n"
-    except Exception as e:
-        return jsonify({"error": f"Could not read PDF: {str(e)}"}), 500
+  extracted_text = ""
+try:
+    with pdfplumber.open(filepath) as pdf:
+        for page in pdf.pages:
+            page_text = page.extract_text()
+            if page_text:
+                extracted_text += page_text + "\n"
+except Exception as e:
+    return jsonify({"error": f"Could not read PDF: {str(e)}"}), 500
+finally:
+    if os.path.exists(filepath):
+        os.remove(filepath)
 
     # Build the prompt for Gemini
     prompt = f"""You are an expert ATS (Applicant Tracking System) resume reviewer.
