@@ -19,6 +19,9 @@ load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
+app = Flask(__name__)
+CORS(app)
+app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # 5MB limit
 
 UPLOAD_FOLDER = 'uploads'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -135,6 +138,8 @@ def upload_resume():
 
     if file.filename == '':
         return jsonify({"error": "No file selected"}), 400
+    if not file.filename.lower().endswith('.pdf'):
+    return jsonify({"error": "Only PDF files are supported"}), 400
 
     job_description = request.form.get('job_description', '')
 
