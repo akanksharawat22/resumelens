@@ -21,8 +21,6 @@ app = Flask(__name__)
 
 allowed_origin = os.environ.get("FRONTEND_URL", "http://localhost:5173")
 CORS(app, origins=[allowed_origin])
-app = Flask(__name__)
-CORS(app)
 app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # 5MB limit
 
 UPLOAD_FOLDER = 'uploads'
@@ -141,26 +139,26 @@ def upload_resume():
     if file.filename == '':
         return jsonify({"error": "No file selected"}), 400
     if not file.filename.lower().endswith('.pdf'):
-    return jsonify({"error": "Only PDF files are supported"}), 400
+        return jsonify({"error": "Only PDF files are supported"}), 400
 
     job_description = request.form.get('job_description', '')
 
     safe_filename = secure_filename(file.filename)
-filepath = os.path.join(UPLOAD_FOLDER, safe_filename)
-file.save(filepath)
+    filepath = os.path.join(UPLOAD_FOLDER, safe_filename)
+    file.save(filepath)
 
-  extracted_text = ""
-try:
-    with pdfplumber.open(filepath) as pdf:
-        for page in pdf.pages:
-            page_text = page.extract_text()
-            if page_text:
-                extracted_text += page_text + "\n"
-except Exception as e:
-    return jsonify({"error": f"Could not read PDF: {str(e)}"}), 500
-finally:
-    if os.path.exists(filepath):
-        os.remove(filepath)
+    extracted_text = ""
+    try:
+        with pdfplumber.open(filepath) as pdf:
+            for page in pdf.pages:
+                page_text = page.extract_text()
+                if page_text:
+                    extracted_text += page_text + "\n"
+    except Exception as e:
+        return jsonify({"error": f"Could not read PDF: {str(e)}"}), 500
+    finally:
+        if os.path.exists(filepath):
+            os.remove(filepath)
 
     # Build the prompt for Gemini
     prompt = f"""You are an expert ATS (Applicant Tracking System) resume reviewer.
