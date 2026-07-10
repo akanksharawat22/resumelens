@@ -4,3 +4,4 @@ pdfplumber
 python-dotenv
 google-genai
 reportlab
+gunicorn
