@@ -2,6 +2,10 @@
 
 An AI-powered resume analyzer that shows you what recruiters and ATS bots actually see.
 
+**🔗 Live demo:** [resumelens-vert.vercel.app](https://resumelens-vert.vercel.app)
+
+> Note: the backend is hosted on Render's free tier, which sleeps after inactivity. The first request after idle time may take 30-60 seconds to wake up — subsequent requests are fast.
+
 ## What it does
 
 - Upload your resume (PDF) and paste a job description
@@ -33,7 +37,5 @@ npm install
 npm run dev
 
 The frontend runs on http://localhost:5173
-
-## Author
 
 Built by Akanksha Rawat as a portfolio project.
