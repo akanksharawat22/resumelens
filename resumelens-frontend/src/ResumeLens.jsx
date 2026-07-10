@@ -14,6 +14,33 @@ function scoreVerdict(score) {
   return 'Weak match';
 }
 
+function IconMissing() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
+      <line x1="8.5" y1="8.5" x2="15.5" y2="15.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <line x1="15.5" y1="8.5" x2="8.5" y2="15.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+function IconIssue() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+      <path d="M12 3 L22 20 H2 Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+      <line x1="12" y1="9.5" x2="12" y2="14.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <circle cx="12" cy="17.3" r="1" fill="currentColor" />
+    </svg>
+  );
+}
+function IconStrength() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
+      <path d="M7.5 12.5 L10.5 15.5 L16.5 9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function StepTracker({ step }) {
   const steps = [
     { n: 1, label: 'Upload' },
@@ -85,6 +112,25 @@ function ScoreRing({ analysis }) {
   );
 }
 
+function FormattedResume({ text }) {
+  const lines = text.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
+
+  return (
+    <div className="improved-text">
+      {lines.map((line, i) => {
+        const isHeading = line === line.toUpperCase() && line.length < 45 && /[A-Za-z]/.test(line);
+        if (isHeading) {
+          return <div key={i} className="improved-heading">{line}</div>;
+        }
+        if (line.startsWith('•') || line.startsWith('-') || line.startsWith('*')) {
+          return <div key={i} className="improved-bullet">{line.replace(/^[•\-*]\s*/, '')}</div>;
+        }
+        return <p key={i} className="improved-line">{line}</p>;
+      })}
+    </div>
+  );
+}
+
 export default function ResumeLens() {
   const [step, setStep] = useState(1);
 
@@ -106,6 +152,17 @@ export default function ResumeLens() {
 
   function handleFileChange(e) {
     setResumeFile(e.target.files[0] || null);
+  }
+
+  function handleReset() {
+    setStep(1);
+    setResumeFile(null);
+    setJobDescription('');
+    setAnalyzeError('');
+    setAnalysis(null);
+    setResumeText('');
+    setImproveError('');
+    setImprovedResume('');
   }
 
   async function handleAnalyze() {
@@ -218,11 +275,84 @@ export default function ResumeLens() {
     }
   }
 
+  function scrollToTool() {
+    document.getElementById('tool-section')?.scrollIntoView({ behavior: 'smooth' });
+  }
+
   return (
     <div className="resumelens-app">
       <div className="wrap">
 
-        <div className="header">
+        <div className="landing">
+          <div className="landing-hero">
+            <div className="landing-hero-text">
+              <div className="landing-badge">ATS RESUME ANALYZER</div>
+              <h1 className="landing-title">
+                See your resume the way<br />an ATS bot sees it.
+              </h1>
+              <p className="landing-sub">
+                Most resumes get filtered out before a human ever reads them. ResumeLens scores yours
+                against a real job description, flags what's missing, and rewrites it — in under a minute.
+              </p>
+              <button className="btn-analyze landing-cta" onClick={scrollToTool}>
+                Get Started — It's Free
+              </button>
+              <div className="landing-steps">
+                <div className="landing-step"><span>1</span>Upload resume + job description</div>
+                <div className="landing-step"><span>2</span>Get your ATS score and gaps</div>
+                <div className="landing-step"><span>3</span>Download the fix</div>
+              </div>
+            </div>
+
+            <div className="landing-hero-preview">
+              <div className="preview-card">
+                <div className="preview-dots"><span></span><span></span><span></span></div>
+                <div className="preview-score-row">
+                  <div className="preview-ring">
+                    <svg viewBox="0 0 92 92">
+                      <circle cx="46" cy="46" r="38" fill="none" stroke="var(--line)" strokeWidth="7"></circle>
+                      <circle cx="46" cy="46" r="38" fill="none" stroke="var(--mint)" strokeWidth="7"
+                        strokeDasharray={2 * Math.PI * 38} strokeDashoffset={2 * Math.PI * 38 * 0.22}
+                        strokeLinecap="round" transform="rotate(-90 46 46)"></circle>
+                    </svg>
+                    <div className="preview-ring-number">78</div>
+                  </div>
+                  <div>
+                    <div className="preview-score-label">ATS Match Score</div>
+                    <div className="preview-score-verdict">Strong match</div>
+                  </div>
+                </div>
+                <div className="preview-row">
+                  <IconMissing /> <span>2 missing skills found</span>
+                </div>
+                <div className="preview-row">
+                  <IconStrength /> <span>5 strengths identified</span>
+                </div>
+                <div className="preview-bar"><div className="preview-bar-fill"></div></div>
+              </div>
+            </div>
+          </div>
+
+          <div className="landing-features">
+            <div className="landing-feature">
+              <div className="landing-feature-icon"><IconMissing /></div>
+              <h3>Gap Detection</h3>
+              <p>Instantly see which skills from the job description your resume is missing.</p>
+            </div>
+            <div className="landing-feature">
+              <div className="landing-feature-icon"><IconIssue /></div>
+              <h3>ATS Score</h3>
+              <p>Get a match score out of 100, the same way applicant tracking systems rank you.</p>
+            </div>
+            <div className="landing-feature">
+              <div className="landing-feature-icon"><IconStrength /></div>
+              <h3>Instant Rewrite</h3>
+              <p>Generate an improved, ATS-friendly version and export it as a polished PDF.</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="header" id="tool-section">
           <div className="brand-mark">
             <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
               <circle cx="17" cy="17" r="11" stroke="#201d18" strokeWidth="2.4" />
@@ -232,6 +362,12 @@ export default function ResumeLens() {
               <h1>ResumeLens</h1>
               <p>See what recruiters and ATS bots actually see</p>
             </div>
+          </div>
+          <div className="how-it-works">
+            <span>Upload</span><span className="arrow">→</span>
+            <span>Score</span><span className="arrow">→</span>
+            <span>Fix</span><span className="arrow">→</span>
+            <span>Export</span>
           </div>
         </div>
 
@@ -312,34 +448,38 @@ export default function ResumeLens() {
                   <ScoreRing analysis={analysis} />
 
                   <div className="section missing">
-                    <h3>Missing Skills</h3>
+                    <h3><IconMissing /> Missing Skills</h3>
                     <ul>
                       {analysis.missing_skills.length
-                        ? analysis.missing_skills.map((s, i) => <li key={i}>{s}</li>)
-                        : <li>None — great match!</li>}
+                        ? analysis.missing_skills.map((s, i) => <li key={i}><IconMissing />{s}</li>)
+                        : <li><IconStrength />None — great match!</li>}
                     </ul>
                   </div>
 
                   <div className="section issues">
-                    <h3>Issues</h3>
+                    <h3><IconIssue /> Issues</h3>
                     <ul>
                       {analysis.issues.length
-                        ? analysis.issues.map((s, i) => <li key={i}>{s}</li>)
-                        : <li>No major issues found.</li>}
+                        ? analysis.issues.map((s, i) => <li key={i}><IconIssue />{s}</li>)
+                        : <li><IconStrength />No major issues found.</li>}
                     </ul>
                   </div>
 
                   <div className="section strengths">
-                    <h3>Strengths</h3>
+                    <h3><IconStrength /> Strengths</h3>
                     <ul>
                       {analysis.strengths.length
-                        ? analysis.strengths.map((s, i) => <li key={i}>{s}</li>)
+                        ? analysis.strengths.map((s, i) => <li key={i}><IconStrength />{s}</li>)
                         : <li>—</li>}
                     </ul>
                   </div>
 
                   <button className="btn-improve" onClick={handleImprove} disabled={improving}>
                     {improving ? 'Rewriting...' : 'Generate Improved Resume'}
+                  </button>
+
+                  <button className="btn-reset" onClick={handleReset} type="button">
+                    Start over with a different resume
                   </button>
 
                   <div id="improvedResult">
@@ -350,7 +490,7 @@ export default function ResumeLens() {
                       <>
                         <div className="improved-box">
                           <h3>Improved Resume</h3>
-                          <div className="improved-text">{improvedResume}</div>
+                          <FormattedResume text={improvedResume} />
                         </div>
                         <button className="btn-download" onClick={handleDownloadPdf} disabled={downloading}>
                           {downloading ? 'Preparing PDF...' : 'Download as PDF'}
