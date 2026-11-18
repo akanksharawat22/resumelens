@@ -1,7 +1,11 @@
 import { useState, useRef, useEffect, Fragment } from 'react';
 import './ResumeLens.css';
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+import './features.css';
+import { API_BASE, authHeaders, getToken, setToken, fetchMe, getAnalysis } from './api';
+import AuthModal from './AuthModal';
+import XrayPanel from './XrayPanel';
+import GuardPanel from './GuardPanel';
+import HistoryPanel from './HistoryPanel';
 
 function scoreColorVar(score) {
   if (score >= 75) return 'var(--color-sage-dark)';
@@ -224,6 +228,11 @@ export default function ResumeLens() {
   const [analyzeError, setAnalyzeError] = useState('');
   const [analysis, setAnalysis] = useState(null);
   const [resumeText, setResumeText] = useState('');
+  const [xray, setXray] = useState(null);
+  const [analysisId, setAnalysisId] = useState(null);
+  const [guard, setGuard] = useState(null);
+  const [user, setUser] = useState(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   // Improve state
   const [improving, setImproving] = useState(false);
@@ -240,6 +249,40 @@ export default function ResumeLens() {
   const [policyModal, setPolicyModal] = useState(null); // 'privacy' | 'terms' | null
   const [previewTab, setPreviewTab] = useState('breakdown'); // 'breakdown' | 'bullets' | 'keywords'
 
+  // Restore the login session on page load.
+  useEffect(() => {
+    if (!getToken()) return;
+    fetchMe()
+      .then((data) => setUser(data.user))
+      .catch(() => setToken(''));
+  }, []);
+
+  function handleLogout() {
+    setToken('');
+    setUser(null);
+    setHistoryOpen(false);
+  }
+
+  async function openSaved(id) {
+    try {
+      const data = await getAnalysis(id);
+      setResumeText(data.resume_text || '');
+      setJobDescription(data.job_description || '');
+      setAnalysis(data.analysis);
+      setXray(data.xray);
+      setAnalysisId(data.id);
+      setImprovedResume(data.improved_resume || '');
+      setGuard(data.guard);
+      setAnalyzeError('');
+      setImproveError('');
+      setStep(data.improved_resume ? 3 : 2);
+      setHistoryOpen(false);
+      scrollToSection('analyzer');
+    } catch (e) {
+      setAnalyzeError(e.message);
+    }
+  }
+
   function handleFileChange(e) {
     const file = e.target.files?.[0] || null;
     setResumeFile(file);
@@ -253,6 +296,9 @@ export default function ResumeLens() {
     setAnalyzeError('');
     setAnalysis(null);
     setResumeText('');
+    setXray(null);
+    setAnalysisId(null);
+    setGuard(null);
     setImproveError('');
     setImprovedResume('');
   }
@@ -276,15 +322,24 @@ export default function ResumeLens() {
     setAnalyzing(true);
     setStep(2);
     setAnalysis(null);
+    setXray(null);
+    setAnalysisId(null);
+    setGuard(null);
     setImprovedResume('');
 
     try {
-      const response = await fetch(`${API_BASE}/upload`, { method: 'POST', body: formData });
+      const response = await fetch(`${API_BASE}/upload`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: formData,
+      });
       const data = await response.json();
 
       if (response.ok) {
         setResumeText(data.resume_text);
         setAnalysis(data.analysis);
+        setXray(data.xray || null);
+        setAnalysisId(data.analysis_id || null);
       } else {
         setAnalyzeError(data.error || 'Server rejected the file.');
       }
@@ -309,18 +364,20 @@ export default function ResumeLens() {
     try {
       const response = await fetch(`${API_BASE}/improve`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           resume_text: resumeText,
           job_description: jobDescription,
           missing_skills: analysis.missing_skills || [],
           issues: analysis.issues || [],
+          analysis_id: analysisId,
         }),
       });
       const data = await response.json();
 
       if (response.ok) {
         setImprovedResume(data.improved_resume);
+        setGuard(data.guard || null);
       } else {
         setImproveError(data.error || 'Improvement service error.');
       }
@@ -395,13 +452,24 @@ export default function ResumeLens() {
           </nav>
 
           <div className="nav-actions">
-            <button
-              type="button"
-              className="btn-login"
-              onClick={() => { setAuthMode('login'); setAuthModalOpen(true); }}
-            >
-              Log in
-            </button>
+            {user ? (
+              <>
+                <button type="button" className="btn-login" onClick={() => setHistoryOpen(true)}>
+                  My analyses
+                </button>
+                <button type="button" className="btn-login" onClick={handleLogout}>
+                  Log out
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                className="btn-login"
+                onClick={() => { setAuthMode('login'); setAuthModalOpen(true); }}
+              >
+                Log in
+              </button>
+            )}
             <button
               type="button"
               className="btn-primary btn-nav-cta"
@@ -686,7 +754,7 @@ export default function ResumeLens() {
             <div className="badge-pill">THREE SIMPLE STEPS</div>
             <h2 className="section-title">From PDF to recruiter-ready in two minutes.</h2>
             <p className="section-subtitle">
-              A frictionless workflow built directly into the browser. No account required, zero stored documents.
+              A frictionless workflow built directly into the browser. No account required. Log in only if you want your history saved.
             </p>
           </div>
 
@@ -1115,6 +1183,12 @@ export default function ResumeLens() {
                   <div className="analysis-results-flow">
                     <ScoreRing analysis={analysis} />
 
+                    <XrayPanel xray={xray} />
+
+                    {!user && (
+                      <p className="rl-save-hint">Log in to save this analysis to your history.</p>
+                    )}
+
                     <div className="audit-section missing-section">
                       <div className="audit-section-head">
                         <span className="audit-icon text-apricot"><IconMissing /></span>
@@ -1230,6 +1304,15 @@ export default function ResumeLens() {
                         <div className="improved-scroll-box">
                           <FormattedResume text={improvedResume} />
                         </div>
+
+                        <GuardPanel
+                          original={resumeText}
+                          improved={improvedResume}
+                          setImproved={setImprovedResume}
+                          jobDescription={jobDescription}
+                          guard={guard}
+                          setGuard={setGuard}
+                        />
 
                         <button
                           type="button"
@@ -1353,57 +1436,17 @@ export default function ResumeLens() {
         </div>
       </footer>
 
-      {/* ================= 10. AUTH MODAL ================= */}
-      {authModalOpen && (
-        <div className="modal-backdrop" onClick={() => setAuthModalOpen(false)}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <button
-              type="button"
-              className="modal-close-btn"
-              aria-label="Close modal"
-              onClick={() => setAuthModalOpen(false)}
-            >
-              ✕
-            </button>
-
-            <div className="modal-header">
-              <BrandLogo />
-              <h3>{authMode === 'login' ? 'Welcome to ResumeLens' : 'Create an Account'}</h3>
-              <p>
-                {authMode === 'login'
-                  ? 'Sign in to access your saved resume evaluations.'
-                  : 'Get started with free resume ATS diagnostics.'}
-              </p>
-            </div>
-
-            <div className="modal-notice-banner">
-              <strong>Free Access:</strong> ResumeLens is currently 100% open and free without requiring an account. You can analyze and download resumes immediately!
-            </div>
-
-            <form className="modal-form" onSubmit={(e) => { e.preventDefault(); setAuthModalOpen(false); scrollToSection('analyzer'); }}>
-              <div className="form-group">
-                <label className="form-label">Email Address</label>
-                <input type="email" className="modal-input" placeholder="you@example.com" required />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Password</label>
-                <input type="password" className="modal-input" placeholder="Enter your password" required />
-              </div>
-
-              <button type="submit" className="btn-primary btn-full">
-                {authMode === 'login' ? 'Sign In & Continue' : 'Create Free Account'}
-              </button>
-            </form>
-
-            <div className="modal-footer-switch">
-              {authMode === 'login' ? (
-                <span>Need an account? <button type="button" onClick={() => setAuthMode('signup')}>Sign up free</button></span>
-              ) : (
-                <span>Already have an account? <button type="button" onClick={() => setAuthMode('login')}>Log in</button></span>
-              )}
-            </div>
-          </div>
-        </div>
+      {/* ================= 10. AUTH MODAL & HISTORY ================= */}
+      <AuthModal
+        open={authModalOpen}
+        mode={authMode}
+        setMode={setAuthMode}
+        onClose={() => setAuthModalOpen(false)}
+        onSuccess={(u) => { setUser(u); setAuthModalOpen(false); }}
+        logo={<BrandLogo />}
+      />
+      {historyOpen && (
+        <HistoryPanel onClose={() => setHistoryOpen(false)} onOpen={openSaved} />
       )}
 
       {/* ================= 11. PRIVACY & TERMS MODAL ================= */}
@@ -1421,14 +1464,14 @@ export default function ResumeLens() {
 
             {policyModal === 'privacy' ? (
               <div className="legal-content">
-                <h3>Privacy Policy & Zero Data Retention</h3>
+                <h3>Privacy Policy</h3>
                 <p><strong>Last Updated: 2026</strong></p>
                 <p>
                   At ResumeLens, we treat candidate confidentiality with the utmost seriousness. When you upload a resume or job description to ResumeLens:
                 </p>
                 <ul>
-                  <li><strong>Ephemeral In-Memory Processing:</strong> Uploaded PDF files are read to extract text for Gemini analysis and are immediately purged.</li>
-                  <li><strong>Zero Persistent Storage:</strong> We do not store your resume, personal contact details, or job history in any database.</li>
+                  <li><strong>Without an account:</strong> Your PDF is read in memory to extract text for Gemini analysis. Nothing is stored.</li>
+                  <li><strong>With an account:</strong> We save the extracted resume text, the job description and your results so you can see your history. You can delete any saved analysis at any time.</li>
                   <li><strong>No Third-Party Advertising:</strong> Your data is never sold, leased, or utilized to train external public advertising models.</li>
                   <li><strong>Direct Client Delivery:</strong> Generated PDFs are constructed on the fly in memory and served directly back to your browser session.</li>
                 </ul>
