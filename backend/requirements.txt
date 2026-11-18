@@ -1,7 +1,8 @@
 flask
-flask-cors
 pdfplumber
 python-dotenv
 google-genai
 reportlab
+PyJWT
 gunicorn
+pytest
