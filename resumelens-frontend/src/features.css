@@ -194,3 +194,38 @@
 @media (max-width: 480px) {
   .rl-panel-head { flex-direction: column; }
 }
+/* Equal-height workbench: the results panel matches the upload panel and scrolls inside. */
+@media (min-width: 1081px) {
+  .analyzer-workbench {
+    align-items: stretch;
+  }
+
+  .output-panel {
+    box-sizing: border-box;
+    height: 0;
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .output-panel .panel-header {
+    flex-shrink: 0;
+  }
+
+  .output-panel .output-content-area {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 8px;
+    scrollbar-width: thin;
+  }
+}
+
+/* On tablets and phones the panels stack, so just cap the results height. */
+@media (max-width: 1080px) {
+  .output-panel .output-content-area {
+    max-height: 80vh;
+    overflow-y: auto;
+    padding-right: 6px;
+  }
+}
