@@ -3,8 +3,10 @@ from flask import Blueprint, g, jsonify, request, send_file
 from . import llm
 from .auth import login_required, optional_user
 from .db import dumps, get_db, loads
+from .guard import check_rewrite
 from .pdfs import build_resume_pdf, extract_text
 from .ratelimit import rate_limited
+from .xray import xray_pdf
 
 bp = Blueprint("main", __name__)
 
@@ -55,6 +57,7 @@ def upload_resume():
 
     try:
         extracted_text = extract_text(pdf_bytes)
+        xray = xray_pdf(pdf_bytes)
     except Exception as e:
         return jsonify({"error": f"Could not read PDF: {e}"}), 500
 
@@ -85,21 +88,31 @@ JOB DESCRIPTION:
         db = get_db()
         cur = db.execute(
             """INSERT INTO analyses
-               (user_id, filename, job_description, resume_text, score, analysis_json)
-               VALUES (?, ?, ?, ?, ?, ?)""",
-            (g.user["id"], file.filename, job_description, extracted_text,
-             analysis["ats_score"], dumps(analysis)),
+               (user_id, filename, job_description, resume_text, score, analysis_json, xray_json)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (
+                g.user["id"],
+                file.filename,
+                job_description,
+                extracted_text,
+                analysis["ats_score"],
+                dumps(analysis),
+                dumps(xray),
+            ),
         )
         db.commit()
         analysis_id = cur.lastrowid
 
-    return jsonify({
-        "message": "Resume analyzed successfully",
-        "filename": file.filename,
-        "resume_text": extracted_text,
-        "analysis": analysis,
-        "analysis_id": analysis_id,
-    })
+    return jsonify(
+        {
+            "message": "Resume analyzed successfully",
+            "filename": file.filename,
+            "resume_text": extracted_text,
+            "analysis": analysis,
+            "xray": xray,
+            "analysis_id": analysis_id,
+        }
+    )
 
 
 @bp.post("/improve")
@@ -143,16 +156,29 @@ Do not include any commentary, notes, or explanations — only the resume conten
     except Exception as e:
         return jsonify({"error": f"Gemini improvement failed: {e}"}), 500
 
+    guard = check_rewrite(resume_text, improved_text, job_description)
+
     analysis_id = data.get("analysis_id")
     if g.user is not None and analysis_id:
         db = get_db()
         db.execute(
-            "UPDATE analyses SET improved_text = ? WHERE id = ? AND user_id = ?",
-            (improved_text, analysis_id, g.user["id"]),
+            "UPDATE analyses SET improved_text = ?, guard_json = ? WHERE id = ? AND user_id = ?",
+            (improved_text, dumps(guard), analysis_id, g.user["id"]),
         )
         db.commit()
 
-    return jsonify({"improved_resume": improved_text})
+    return jsonify({"improved_resume": improved_text, "guard": guard})
+
+
+@bp.post("/verify")
+def verify_rewrite():
+    """Re-check text the user edited by hand. No AI call, so no rate limit needed."""
+    data = request.get_json(silent=True) or {}
+    original = data.get("original_text")
+    improved = data.get("improved_text")
+    if not original or not improved:
+        return jsonify({"error": "Missing original or improved text"}), 400
+    return jsonify({"guard": check_rewrite(original, improved, data.get("job_description", ""))})
 
 
 @bp.post("/download-pdf")
@@ -166,12 +192,15 @@ def download_pdf():
     except Exception as e:
         return jsonify({"error": f"Could not generate PDF: {e}"}), 500
     return send_file(
-        pdf_buffer, mimetype="application/pdf",
-        as_attachment=True, download_name="Improved_Resume.pdf",
+        pdf_buffer,
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name="Improved_Resume.pdf",
     )
 
 
 # ---------- saved history (login required) ----------
+
 
 @bp.get("/analyses")
 @login_required
@@ -181,11 +210,20 @@ def list_analyses():
            FROM analyses WHERE user_id = ? ORDER BY id DESC LIMIT 100""",
         (g.user["id"],),
     ).fetchall()
-    return jsonify({"analyses": [
-        {"id": r["id"], "filename": r["filename"], "score": r["score"],
-         "created_at": r["created_at"], "improved": bool(r["improved"])}
-        for r in rows
-    ]})
+    return jsonify(
+        {
+            "analyses": [
+                {
+                    "id": r["id"],
+                    "filename": r["filename"],
+                    "score": r["score"],
+                    "created_at": r["created_at"],
+                    "improved": bool(r["improved"]),
+                }
+                for r in rows
+            ]
+        }
+    )
 
 
 @bp.get("/analyses/<int:analysis_id>")
@@ -197,11 +235,19 @@ def get_analysis(analysis_id):
     ).fetchone()
     if r is None:
         return jsonify({"error": "Analysis not found"}), 404
-    return jsonify({
-        "id": r["id"], "filename": r["filename"], "created_at": r["created_at"],
-        "job_description": r["job_description"], "resume_text": r["resume_text"],
-        "analysis": loads(r["analysis_json"]), "improved_resume": r["improved_text"],
-    })
+    return jsonify(
+        {
+            "id": r["id"],
+            "filename": r["filename"],
+            "created_at": r["created_at"],
+            "job_description": r["job_description"],
+            "resume_text": r["resume_text"],
+            "analysis": loads(r["analysis_json"]),
+            "xray": loads(r["xray_json"]),
+            "improved_resume": r["improved_text"],
+            "guard": loads(r["guard_json"]),
+        }
+    )
 
 
 @bp.delete("/analyses/<int:analysis_id>")
@@ -209,7 +255,8 @@ def get_analysis(analysis_id):
 def delete_analysis(analysis_id):
     db = get_db()
     cur = db.execute(
-        "DELETE FROM analyses WHERE id = ? AND user_id = ?", (analysis_id, g.user["id"])
+        "DELETE FROM analyses WHERE id = ? AND user_id = ?",
+        (analysis_id, g.user["id"]),
     )
     db.commit()
     if cur.rowcount == 0:
